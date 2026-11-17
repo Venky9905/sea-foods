@@ -1,5 +1,6 @@
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+
 import {
   Modal,
   Button,
@@ -7,11 +8,18 @@ import {
   Spinner,
 } from "react-bootstrap";
 
-import { FiArrowLeft } from "react-icons/fi";
-import { FaWhatsapp } from "react-icons/fa";
+import {
+  FiUser,
+  FiLock,
+  FiUserPlus,
+} from "react-icons/fi";
+
 import { MdVerified } from "react-icons/md";
 
-// Safely read API response
+// --------------------------------------
+// API RESPONSE HANDLER
+// --------------------------------------
+
 const getResponseData = async (response) => {
   const text = await response.text();
 
@@ -24,48 +32,68 @@ const getResponseData = async (response) => {
   }
 };
 
+// --------------------------------------
+// LOGIN MODAL
+// --------------------------------------
+
 export default function LoginModal({
   show,
   onHide,
   onLoginSuccess,
+  onRegisterSuccess,
 }) {
-  const [step, setStep] = useState(1);
+  const [mode, setMode] = useState("login");
 
-  const [name, setName] = useState("");
-  const [mobile, setMobile] = useState("");
+  const [loginForm, setLoginForm] = useState({
+    username: "",
+    password: "",
+  });
 
-  const [otp, setOtp] = useState([
-    "", "", "", "", "", ""
-  ]);
+  const [registerForm, setRegisterForm] = useState({
+    name: "",
+    mobile: "",
+    email: "",
+    address: "",
+    username: "",
+    password: "",
+    confirmPassword: "",
+  });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const otpRefs = useRef([]);
-  // Focus first OTP box
-  useEffect(() => {
-    if (show && step === 2) {
-      const timer = setTimeout(() => {
-        otpRefs.current[0]?.focus();
-      }, 200);
+  // --------------------------------------
+  // RESET FORM
+  // --------------------------------------
 
-      return () => clearTimeout(timer);
-    }
-  }, [show, step]);
-
-  // Reset modal
   const resetModal = () => {
-    setStep(1);
-    setName("");
-    setMobile("");
-    setOtp(["", "", "", "", "", ""]);
+    setMode("login");
+
+    setLoginForm({
+      username: "",
+      password: "",
+    });
+
+    setRegisterForm({
+      name: "",
+      mobile: "",
+      email: "",
+      address: "",
+      username: "",
+      password: "",
+      confirmPassword: "",
+    });
+
     setError("");
     setSuccess("");
     setLoading(false);
   };
 
-  // Close modal
+  // --------------------------------------
+  // CLOSE MODAL
+  // --------------------------------------
+
   const handleClose = () => {
     if (loading) return;
 
@@ -73,266 +101,277 @@ export default function LoginModal({
     onHide?.();
   };
 
-  // SEND OTP
-  const handleGetOTP = async (e) => {
+  // --------------------------------------
+  // OPEN LOGIN
+  // --------------------------------------
+
+  const handleOpenLogin = () => {
+    setMode("login");
+    setError("");
+    setSuccess("");
+  };
+
+  // --------------------------------------
+  // OPEN REGISTER
+  // --------------------------------------
+
+  const handleOpenRegister = () => {
+    setMode("register");
+    setError("");
+    setSuccess("");
+  };
+
+  // --------------------------------------
+  // LOGIN INPUT CHANGE
+  // --------------------------------------
+
+  const handleLoginChange = (e) => {
+    const { name, value } = e.target;
+
+    setLoginForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    setError("");
+  };
+
+  // --------------------------------------
+  // REGISTER INPUT CHANGE
+  // --------------------------------------
+
+  const handleRegisterChange = (e) => {
+    const { name, value } = e.target;
+
+    setRegisterForm((prev) => ({
+      ...prev,
+      [name]:
+        name === "mobile"
+          ? value.replace(/\D/g, "").slice(0, 10)
+          : value,
+    }));
+
+    setError("");
+  };
+
+  // --------------------------------------
+  // LOGIN
+  // --------------------------------------
+
+  const handleLogin = async (e) => {
     e.preventDefault();
 
     setError("");
     setSuccess("");
 
-    if (!name.trim()) {
-      setError("Please enter your name.");
+    if (!loginForm.username.trim()) {
+      setError("Please enter your username.");
       return;
     }
 
-    if (!/^[6-9]\d{9}$/.test(mobile)) {
-      setError("Please enter a valid 10-digit mobile number.");
+    if (!loginForm.password) {
+      setError("Please enter your password.");
       return;
     }
-
-    // DEMO LOGIN - Skip actual OTP API in development
-    if (import.meta.env.DEV) {
-      setOtp(["", "", "", "", "", ""]);
-      setStep(2);
-      setSuccess("Enter any 6-digit number to continue.");
-      return;
-    }
-
-    // Production: Send actual OTP
-    try {
-      setLoading(true);
-
-      const response = await fetch(
-        "/api/auth/send-whatsapp-otp",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: name.trim(),
-            mobile,
-            mode: "login",
-          }),
-        }
-      );
-
-      const data = await getResponseData(response);
-
-      if (!response.ok) {
-        throw new Error(data.message || "Unable to send OTP.");
-      }
-
-      setOtp(["", "", "", "", "", ""]);
-      setStep(2);
-      setSuccess("OTP sent successfully to your WhatsApp number.");
-
-    } catch (err) {
-      setError(err.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  };
-  // OTP INPUT CHANGE
-  const handleOTPChange = (value, index) => {
-    if (!/^\d?$/.test(value)) return;
-
-    const updatedOTP = [...otp];
-    updatedOTP[index] = value;
-
-    setOtp(updatedOTP);
-    setError("");
-
-    if (value && index < 5) {
-      otpRefs.current[index + 1]?.focus();
-    }
-  };
-
-  // BACKSPACE AND ARROW HANDLING
-  const handleOTPKeyDown = (e, index) => {
-    if (
-      e.key === "Backspace" &&
-      !otp[index] &&
-      index > 0
-    ) {
-      otpRefs.current[index - 1]?.focus();
-    }
-
-    if (e.key === "ArrowLeft" && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-
-    if (e.key === "ArrowRight" && index < 5) {
-      otpRefs.current[index + 1]?.focus();
-    }
-  };
-
-  // PASTE OTP
-  const handleOTPPaste = (e) => {
-    const pasted = e.clipboardData
-      .getData("text")
-      .replace(/\D/g, "")
-      .slice(0, 6);
-
-    if (!pasted) return;
-
-    e.preventDefault();
-
-    const updatedOTP = ["", "", "", "", "", ""];
-
-    pasted.split("").forEach((digit, index) => {
-      updatedOTP[index] = digit;
-    });
-
-    setOtp(updatedOTP);
-    setError("");
-
-    const nextIndex = Math.min(pasted.length, 5);
-    otpRefs.current[nextIndex]?.focus();
-  };
-
-  // VERIFY OTP
-  const handleVerifyOTP = async (e) => {
-    e.preventDefault();
-
-    setError("");
-    setSuccess("");
-
-    const enteredOTP = otp.join("");
-
-    if (enteredOTP.length !== 6) {
-      setError("Please enter all 6 digits.");
-      return;
-    }
-
-    // DEMO LOGIN - Accept any 6 digits in development
-    if (import.meta.env.DEV) {
-      const customer = {
-        name: name.trim(),
-        mobile: mobile,
-      };
-
-      localStorage.setItem(
-        "customer",
-        JSON.stringify(customer)
-      );
-
-      onLoginSuccess?.(customer);
-
-      resetModal();
-      onHide?.();
-
-      return;
-    }
-
-    // Production: Actual OTP verification
-    try {
-      setLoading(true);
-
-      const response = await fetch(
-        "/api/auth/verify-whatsapp-otp",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: name.trim(),
-            mobile,
-            otp: enteredOTP,
-            mode: "login",
-          }),
-        }
-      );
-
-      const data = await getResponseData(response);
-
-      if (!response.ok) {
-        throw new Error(data.message || "Invalid OTP.");
-      }
-
-      if (data.token) {
-        localStorage.setItem("customerToken", data.token);
-      }
-
-      const customer = data.customer || {
-        name: name.trim(),
-        mobile,
-      };
-
-      localStorage.setItem(
-        "customer",
-        JSON.stringify(customer)
-      );
-
-      onLoginSuccess?.(customer);
-
-      resetModal();
-      onHide?.();
-
-    } catch (err) {
-      setError(err.message || "OTP verification failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-  // RESEND OTP
-  const handleResendOTP = async () => {
-    setError("");
-    setSuccess("");
 
     try {
       setLoading(true);
 
-      const response = await fetch(
-        "/api/auth/send-whatsapp-otp",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: name.trim(),
-            mobile,
-            mode: "login",
-          }),
-        }
-      );
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: loginForm.username.trim(),
+          password: loginForm.password,
+        }),
+      });
 
       const data = await getResponseData(response);
 
       if (!response.ok) {
         throw new Error(
-          data.message || "Unable to resend OTP."
+          data.message || "Invalid username or password."
         );
       }
 
-      setOtp(["", "", "", "", "", ""]);
+      if (!data.token) {
+        throw new Error(
+          "Login response did not contain an authentication token."
+        );
+      }
 
-      setSuccess(
-        "A new OTP has been sent to your WhatsApp."
+      const customer = data.customer || data.user;
+
+      if (!customer) {
+        throw new Error(
+          "Login response did not contain customer details."
+        );
+      }
+
+      // Store authentication token
+      localStorage.setItem(
+        "customerToken",
+        data.token
       );
 
-      setTimeout(() => {
-        otpRefs.current[0]?.focus();
-      }, 100);
+      // Store customer details
+      localStorage.setItem(
+        "customer",
+        JSON.stringify(customer)
+      );
+
+      onLoginSuccess?.(customer);
+
+      resetModal();
+      onHide?.();
 
     } catch (err) {
       setError(
-        err.message || "Unable to resend OTP."
+        err.message || "Login failed. Please try again."
       );
     } finally {
       setLoading(false);
     }
   };
 
-  // CHANGE MOBILE NUMBER
-  const handleChangeMobile = () => {
-    setStep(1);
-    setOtp(["", "", "", "", "", ""]);
+  // --------------------------------------
+  // REGISTER VALIDATION
+  // --------------------------------------
+
+  const validateRegistration = () => {
+    const {
+      name,
+      mobile,
+      email,
+      address,
+      username,
+      password,
+      confirmPassword,
+    } = registerForm;
+
+    if (
+      !name.trim() ||
+      !mobile.trim() ||
+      !email.trim() ||
+      !address.trim() ||
+      !username.trim() ||
+      !password ||
+      !confirmPassword
+    ) {
+      return "Please fill in all fields.";
+    }
+
+    if (!/^[A-Za-z\s.'-]{2,100}$/.test(name.trim())) {
+      return "Please enter a valid name.";
+    }
+
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      return "Enter a valid 10-digit mobile number.";
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return "Enter a valid email address.";
+    }
+
+    if (
+      username.length < 4 ||
+      !/^[a-zA-Z0-9_]+$/.test(username)
+    ) {
+      return "Username must be at least 4 characters. Only letters, numbers and underscores are allowed.";
+    }
+
+    if (password.length < 8) {
+      return "Password must contain at least 8 characters.";
+    }
+
+    if (password !== confirmPassword) {
+      return "Password and Confirm Password do not match.";
+    }
+
+    return "";
+  };
+
+  // --------------------------------------
+  // REGISTER CUSTOMER
+  // --------------------------------------
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+
     setError("");
     setSuccess("");
+
+    const validationError = validateRegistration();
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: registerForm.name.trim(),
+          mobile: registerForm.mobile,
+          email: registerForm.email.trim(),
+          address: registerForm.address.trim(),
+          username: registerForm.username.trim(),
+          password: registerForm.password,
+        }),
+      });
+
+      const data = await getResponseData(response);
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Registration failed."
+        );
+      }
+
+      onRegisterSuccess?.(data.customer || data);
+
+      // Switch to login after successful registration
+      setLoginForm({
+        username: registerForm.username,
+        password: "",
+      });
+
+      setRegisterForm({
+        name: "",
+        mobile: "",
+        email: "",
+        address: "",
+        username: "",
+        password: "",
+        confirmPassword: "",
+      });
+
+      setMode("login");
+
+      setSuccess(
+        "Registration successful! Please login."
+      );
+
+    } catch (err) {
+      setError(
+        err.message || "Registration failed."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
+
+  // --------------------------------------
+  // MODAL UI
+  // --------------------------------------
 
   return (
     <Modal
@@ -343,22 +382,29 @@ export default function LoginModal({
       keyboard={!loading}
       className="seafood-login-modal"
     >
+
+      {/* HEADER */}
+
       <Modal.Header closeButton>
         <Modal.Title>
-          {step === 1
+          {mode === "login"
             ? "Login to Your Account"
-            : "Verify Your Number"}
+            : "Create Your Account"}
         </Modal.Title>
       </Modal.Header>
 
       <Modal.Body>
 
-        {/* STEP 1: LOGIN */}
-        {step === 1 ? (
+        {/* ==================================
+            LOGIN PAGE
+        ================================== */}
+
+        {mode === "login" ? (
+
           <div className="login-step-one">
 
             <div className="login-icon">
-              <FaWhatsapp />
+              <FiUser />
             </div>
 
             <h5>
@@ -366,58 +412,50 @@ export default function LoginModal({
             </h5>
 
             <p className="login-description">
-              Enter your name and WhatsApp mobile number
-              to continue.
+              Login to your account and enjoy fresh seafood.
             </p>
 
-            <Form onSubmit={handleGetOTP}>
+            <Form onSubmit={handleLogin}>
 
-              {/* NAME */}
+              {/* USERNAME */}
+
               <Form.Group className="mb-3">
+
                 <Form.Label>
-                  Your Name
+                  Username
                 </Form.Label>
 
-                <div className="auth-mobile-input">
-                  <Form.Control
-                    type="text"
-                    placeholder="Enter your name"
-                    value={name}
-                    onChange={(e) =>
-                      setName(e.target.value)
-                    }
-                    maxLength={100}
-                    autoComplete="name"
-                  />
-                </div>
+                <Form.Control
+                  type="text"
+                  name="username"
+                  placeholder="Enter your username"
+                  value={loginForm.username}
+                  onChange={handleLoginChange}
+                  autoComplete="username"
+                />
+
               </Form.Group>
 
-              {/* MOBILE NUMBER */}
+              {/* PASSWORD */}
+
               <Form.Group className="mb-3">
+
                 <Form.Label>
-                  Phone Number
+                  Password
                 </Form.Label>
 
-                <div className="login-mobile-input">
-                  <span>+91</span>
+                <Form.Control
+                  type="password"
+                  name="password"
+                  placeholder="Enter your password"
+                  value={loginForm.password}
+                  onChange={handleLoginChange}
+                  autoComplete="current-password"
+                />
 
-                  <Form.Control
-                    type="tel"
-                    placeholder="Enter your 10-digit phone number"
-                    value={mobile}
-                    maxLength={10}
-                    inputMode="numeric"
-                    autoComplete="tel-national"
-                    onChange={(e) =>
-                      setMobile(
-                        e.target.value
-                          .replace(/\D/g, "")
-                          .slice(0, 10)
-                      )
-                    }
-                  />
-                </div>
               </Form.Group>
+
+              {/* ERROR */}
 
               {error && (
                 <div className="login-error">
@@ -425,93 +463,7 @@ export default function LoginModal({
                 </div>
               )}
 
-              <Button
-                type="submit"
-                className="login-submit-btn w-100"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Spinner
-                      size="sm"
-                      className="me-2"
-                    />
-                    Sending OTP...
-                  </>
-                ) : (
-                  <>
-                    <FaWhatsapp className="me-2" />
-                    Get OTP
-                  </>
-                )}
-              </Button>
-
-            </Form>
-          </div>
-
-        ) : (
-
-          /* STEP 2: OTP VERIFICATION */
-          <div className="login-step-two">
-
-            <div className="login-icon">
-              <FaWhatsapp />
-            </div>
-
-            <h5>
-              Enter Verification Code
-            </h5>
-
-            <p className="login-description">
-              We have sent a 6-digit OTP to your WhatsApp number.
-            </p>
-
-            <div className="login-otp-mobile">
-              +91 {mobile}
-            </div>
-
-            <Form onSubmit={handleVerifyOTP}>
-
-              {/* SIX OTP BOXES */}
-              <div className="otp-input-wrapper">
-
-                {otp.map((digit, index) => (
-                  <input
-                    key={index}
-                    ref={(el) => {
-                      otpRefs.current[index] = el;
-                    }}
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete={
-                      index === 0
-                        ? "one-time-code"
-                        : "off"
-                    }
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) =>
-                      handleOTPChange(
-                        e.target.value,
-                        index
-                      )
-                    }
-                    onKeyDown={(e) =>
-                      handleOTPKeyDown(e, index)
-                    }
-                    onPaste={handleOTPPaste}
-                    className="otp-input"
-                    aria-label={`OTP digit ${index + 1}`}
-                  />
-                ))}
-
-              </div>
-
-              {error && (
-                <div className="login-error">
-                  {error}
-                </div>
-              )}
+              {/* SUCCESS */}
 
               {success && (
                 <div className="login-success">
@@ -519,57 +471,269 @@ export default function LoginModal({
                 </div>
               )}
 
-              {/* RESEND OTP */}
-              <div className="otp-resend">
-                Didn't receive OTP?
-
-                <button
-                  type="button"
-                  onClick={handleResendOTP}
-                  disabled={loading}
-                >
-                  Resend OTP
-                </button>
-              </div>
-
               {/* LOGIN BUTTON */}
+
               <Button
                 type="submit"
                 className="login-submit-btn w-100"
                 disabled={loading}
               >
+
                 {loading ? (
                   <>
                     <Spinner
                       size="sm"
                       className="me-2"
                     />
-                    Verifying...
+                    Logging in...
                   </>
                 ) : (
                   <>
+                    <FiLock className="me-2" />
                     Login
+                  </>
+                )}
+
+              </Button>
+
+            </Form>
+
+            {/* REGISTER LINK */}
+
+            <div className="register-login-link">
+
+              Don't have an account?
+
+              <button
+                type="button"
+                onClick={handleOpenRegister}
+              >
+                Register
+              </button>
+
+            </div>
+
+          </div>
+
+        ) : (
+
+          /* ==================================
+              REGISTRATION PAGE
+          ================================== */
+
+          <div className="register-form-wrapper">
+
+            <div className="register-icon">
+              <FiUserPlus />
+            </div>
+
+            <h5>
+              Welcome to Parth Krishna Sea Foods
+            </h5>
+
+            <p className="register-description">
+              Create your account to enjoy fresh seafood.
+            </p>
+
+            <Form onSubmit={handleRegister}>
+
+              {/* NAME */}
+
+              <Form.Group className="mb-3">
+
+                <Form.Label>
+                  Full Name
+                </Form.Label>
+
+                <Form.Control
+                  type="text"
+                  name="name"
+                  placeholder="Enter your full name"
+                  value={registerForm.name}
+                  onChange={handleRegisterChange}
+                  autoComplete="name"
+                />
+
+              </Form.Group>
+
+              {/* PHONE NUMBER */}
+
+              <Form.Group className="mb-3">
+
+                <Form.Label>
+                  Phone Number
+                </Form.Label>
+
+                <div className="register-mobile-input">
+
+                  <span>+91</span>
+
+                  <Form.Control
+                    type="tel"
+                    name="mobile"
+                    placeholder="Enter 10-digit phone number"
+                    value={registerForm.mobile}
+                    onChange={handleRegisterChange}
+                    maxLength={10}
+                    inputMode="numeric"
+                    autoComplete="tel-national"
+                  />
+
+                </div>
+
+              </Form.Group>
+
+              {/* EMAIL */}
+
+              <Form.Group className="mb-3">
+
+                <Form.Label>
+                  Email Address
+                </Form.Label>
+
+                <Form.Control
+                  type="email"
+                  name="email"
+                  placeholder="Enter your email address"
+                  value={registerForm.email}
+                  onChange={handleRegisterChange}
+                  autoComplete="email"
+                />
+
+              </Form.Group>
+
+              {/* ADDRESS */}
+
+              <Form.Group className="mb-3">
+
+                <Form.Label>
+                  Address
+                </Form.Label>
+
+                <Form.Control
+                  as="textarea"
+                  rows={2}
+                  name="address"
+                  placeholder="Enter your complete address"
+                  value={registerForm.address}
+                  onChange={handleRegisterChange}
+                  autoComplete="street-address"
+                />
+
+              </Form.Group>
+
+              {/* USERNAME */}
+
+              <Form.Group className="mb-3">
+
+                <Form.Label>
+                  Username
+                </Form.Label>
+
+                <Form.Control
+                  type="text"
+                  name="username"
+                  placeholder="Choose your username"
+                  value={registerForm.username}
+                  onChange={handleRegisterChange}
+                  autoComplete="username"
+                />
+
+              </Form.Group>
+
+              {/* PASSWORD */}
+
+              <Form.Group className="mb-3">
+
+                <Form.Label>
+                  Password
+                </Form.Label>
+
+                <Form.Control
+                  type="password"
+                  name="password"
+                  placeholder="Create your password"
+                  value={registerForm.password}
+                  onChange={handleRegisterChange}
+                  autoComplete="new-password"
+                />
+
+              </Form.Group>
+
+              {/* CONFIRM PASSWORD */}
+
+              <Form.Group className="mb-3">
+
+                <Form.Label>
+                  Confirm Password
+                </Form.Label>
+
+                <Form.Control
+                  type="password"
+                  name="confirmPassword"
+                  placeholder="Confirm your password"
+                  value={registerForm.confirmPassword}
+                  onChange={handleRegisterChange}
+                  autoComplete="new-password"
+                />
+
+              </Form.Group>
+
+              {/* ERROR */}
+
+              {error && (
+                <div className="login-error">
+                  {error}
+                </div>
+              )}
+
+              {/* CONTINUE BUTTON */}
+
+              <Button
+                type="submit"
+                className="login-submit-btn w-100"
+                disabled={loading}
+              >
+
+                {loading ? (
+                  <>
+                    <Spinner
+                      size="sm"
+                      className="me-2"
+                    />
+                    Creating Account...
+                  </>
+                ) : (
+                  <>
+                    Continue
                     <MdVerified className="ms-2" />
                   </>
                 )}
+
               </Button>
 
-              {/* CHANGE MOBILE */}
+            </Form>
+
+            {/* LOGIN LINK */}
+
+            <div className="register-login-link">
+
+              Already have an account?
+
               <button
                 type="button"
-                className="change-mobile-btn"
-                onClick={handleChangeMobile}
-                disabled={loading}
+                onClick={handleOpenLogin}
               >
-                <FiArrowLeft />
-                Change Details
+                Login
               </button>
 
-            </Form>
+            </div>
+
           </div>
         )}
 
       </Modal.Body>
+
     </Modal>
   );
 }
