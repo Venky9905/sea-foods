@@ -1,7 +1,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "./dashboard.css";
+import "./Dashboard.css";
 
 const deliveryAreas = [
   { name: "AIIMS Quarters and Hostels", charge: 15 },
