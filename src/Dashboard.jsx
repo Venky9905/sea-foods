@@ -72,7 +72,7 @@ const initialOrders = [
   },
   {
     id: 1004,
-    customer: "Prasad",
+    customer: "Prasad111",
     phone: "9000012345",
     address: "6th Battalion",
     date: "11 Nov 2026, 01:15 PM",
