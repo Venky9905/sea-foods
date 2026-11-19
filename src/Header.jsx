@@ -6,41 +6,15 @@ import { FiShoppingBag, FiUser } from "react-icons/fi";
 import { MdDashboardCustomize } from "react-icons/md";
 
 import { useShop } from "./useShop";
-import BasketDrawer from "./BasketDrawer";
-import LoginModal from "./LoginModal";
 import ProfileModal from "./ProfileModal";
-
-// Read customer from localStorage
-const getSavedCustomer = () => {
-  try {
-    const saved = localStorage.getItem("customer");
-    if (!saved) return null;
-
-    const parsed = JSON.parse(saved);
-
-    return parsed && typeof parsed === "object"
-      ? parsed
-      : null;
-  } catch (error) {
-    console.error("Customer storage error:", error);
-    return null;
-  }
-};
+import { useAuth } from "./useAuth";
 
 export default function Header() {
   const [expanded, setExpanded] = useState(false);
-  const [basketOpen, setBasketOpen] = useState(false);
-
-  // Separate modal visibility
-  const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  const [authMode, setAuthMode] = useState("register");
-
-  // Customer state
-  const [customer, setCustomer] = useState(getSavedCustomer);
-
   const { itemCount } = useShop();
+  const { customer, requestLogin, logout, updateCustomer } = useAuth();
   const location = useLocation();
 
   const links = [
@@ -70,128 +44,35 @@ export default function Header() {
     return () => clearTimeout(timer);
   }, [location.pathname, location.hash]);
 
-  // Basket event
-  useEffect(() => {
-    const openBasket = () => setBasketOpen(true);
-
-    window.addEventListener(
-      "open-seafood-basket",
-      openBasket
-    );
-
-    return () => {
-      window.removeEventListener(
-        "open-seafood-basket",
-        openBasket
-      );
-    };
-  }, []);
-
-  // Sync customer from other tabs
-  useEffect(() => {
-    const syncCustomer = () => {
-      setCustomer(getSavedCustomer());
-    };
-
-    window.addEventListener("storage", syncCustomer);
-
-    return () => {
-      window.removeEventListener("storage", syncCustomer);
-    };
-  }, []);
-
-
   // Login popup
   const handleLogin = () => {
     setExpanded(false);
     setProfileOpen(false);
-    setAuthMode("login");
-    setAuthOpen(true);
+    requestLogin();
   };
 
   // Profile popup
   const handleProfile = () => {
     setExpanded(false);
 
-    const savedCustomer = getSavedCustomer();
-
-    if (savedCustomer) {
-      setCustomer(savedCustomer);
-      setAuthOpen(false);
+    if (customer) {
       setProfileOpen(true);
     } else {
       setProfileOpen(false);
-      setAuthMode("login");
-      setAuthOpen(true);
+      requestLogin();
     }
-  };
-
-  const handleAuthSuccess = (customerData) => {
-    console.log("Customer received from LoginModal:", customerData);
-
-    // LoginModal passes the customer object directly
-    const mobile =
-      customerData?.mobile ||
-      customerData?.phone ||
-      customerData?.mobileNumber ||
-      customerData?.whatsappNumber;
-
-    if (!mobile) {
-      console.error("Customer mobile number missing:", customerData);
-      return;
-    }
-
-    const updatedCustomer = {
-      ...customerData,
-      name: String(
-        customerData?.name ||
-        customerData?.fullName ||
-        customerData?.customerName ||
-        "Customer"
-      ),
-      mobile: String(mobile),
-    };
-
-    // Save customer details
-    localStorage.setItem(
-      "customer",
-      JSON.stringify(updatedCustomer)
-    );
-
-    setCustomer(updatedCustomer);
-
-    // Close login and profile popups
-    setAuthOpen(false);
-    setProfileOpen(false);
-
-    console.log("Customer successfully saved:", updatedCustomer);
   };
 
   // Customer details update
   const handleCustomerUpdate = (updatedCustomer) => {
     if (!updatedCustomer) return;
-
-    localStorage.setItem(
-      "customer",
-      JSON.stringify(updatedCustomer)
-    );
-
-    setCustomer(updatedCustomer);
+    updateCustomer(updatedCustomer);
   };
 
   // Logout
   const handleLogout = () => {
-    localStorage.removeItem("customer");
-    localStorage.removeItem("customerToken");
-
-    setCustomer(null);
+    logout();
     setProfileOpen(false);
-    setAuthOpen(false);
-    setAuthMode("register");
-  };
-
-  const handleCloseBasket = () => {
-    setBasketOpen(false);
   };
   return (
     <>
@@ -298,7 +179,7 @@ export default function Header() {
               className="header-basket-btn basket-btn"
               onClick={() => {
                 setExpanded(false);
-                setBasketOpen(true);
+                window.dispatchEvent(new Event("open-seafood-basket"));
               }}
             >
               <FiShoppingBag />
@@ -312,15 +193,6 @@ export default function Header() {
         </Container>
       </Navbar>
 
-      {/* LOGIN / REGISTER MODAL */}
-      <LoginModal
-        show={authOpen && !profileOpen}
-        initialMode={authMode}
-        onHide={() => setAuthOpen(false)}
-        onLoginSuccess={handleAuthSuccess}
-        onModeChange={setAuthMode}
-      />
-
       {/* PROFILE MODAL */}
       <ProfileModal
         show={profileOpen && Boolean(customer)}
@@ -330,11 +202,6 @@ export default function Header() {
         onLogout={handleLogout}
       />
 
-      {/* BASKET DRAWER */}
-      <BasketDrawer
-        open={basketOpen}
-        onClose={handleCloseBasket}
-      />
     </>
   );
 }

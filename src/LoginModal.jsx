@@ -15,22 +15,10 @@ import {
 } from "react-icons/fi";
 
 import { MdVerified } from "react-icons/md";
-
-// --------------------------------------
-// API RESPONSE HANDLER
-// --------------------------------------
-
-const getResponseData = async (response) => {
-  const text = await response.text();
-
-  if (!text) return {};
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { message: text };
-  }
-};
+import DeliveryDetails from "./DeliveryDetails";
+import { deliveryAreas } from "./deliveryAreas";
+import { isJwtUnexpired } from "./authSession";
+import { loginCustomer, registerCustomer } from "./authApi";
 
 // --------------------------------------
 // LOGIN MODAL
@@ -54,6 +42,7 @@ export default function LoginModal({
     mobile: "",
     email: "",
     address: "",
+    deliveryArea: "",
     username: "",
     password: "",
     confirmPassword: "",
@@ -80,6 +69,7 @@ export default function LoginModal({
       mobile: "",
       email: "",
       address: "",
+      deliveryArea: "",
       username: "",
       password: "",
       confirmPassword: "",
@@ -154,6 +144,14 @@ export default function LoginModal({
     setError("");
   };
 
+  const handleRegistrationAreaChange = (deliveryArea) => {
+    setRegisterForm((prev) => ({
+      ...prev,
+      deliveryArea,
+    }));
+    setError("");
+  };
+
   // --------------------------------------
   // LOGIN
   // --------------------------------------
@@ -177,28 +175,14 @@ export default function LoginModal({
     try {
       setLoading(true);
 
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: loginForm.username.trim(),
-          password: loginForm.password,
-        }),
+      const data = await loginCustomer({
+        username: loginForm.username.trim(),
+        password: loginForm.password,
       });
 
-      const data = await getResponseData(response);
-
-      if (!response.ok) {
+      if (!isJwtUnexpired(data.token)) {
         throw new Error(
-          data.message || "Invalid username or password."
-        );
-      }
-
-      if (!data.token) {
-        throw new Error(
-          "Login response did not contain an authentication token."
+          "Login response did not contain a valid, unexpired JWT."
         );
       }
 
@@ -222,7 +206,7 @@ export default function LoginModal({
         JSON.stringify(customer)
       );
 
-      onLoginSuccess?.(customer);
+      onLoginSuccess?.(customer, data.token);
 
       resetModal();
       onHide?.();
@@ -246,6 +230,7 @@ export default function LoginModal({
       mobile,
       email,
       address,
+      deliveryArea,
       username,
       password,
       confirmPassword,
@@ -256,6 +241,7 @@ export default function LoginModal({
       !mobile.trim() ||
       !email.trim() ||
       !address.trim() ||
+      !deliveryArea ||
       !username.trim() ||
       !password ||
       !confirmPassword
@@ -313,28 +299,15 @@ export default function LoginModal({
     try {
       setLoading(true);
 
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: registerForm.name.trim(),
-          mobile: registerForm.mobile,
-          email: registerForm.email.trim(),
-          address: registerForm.address.trim(),
-          username: registerForm.username.trim(),
-          password: registerForm.password,
-        }),
+      const data = await registerCustomer({
+        name: registerForm.name.trim(),
+        mobile: registerForm.mobile,
+        email: registerForm.email.trim(),
+        address: registerForm.address.trim(),
+        deliveryArea: registerForm.deliveryArea,
+        username: registerForm.username.trim(),
+        password: registerForm.password,
       });
-
-      const data = await getResponseData(response);
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Registration failed."
-        );
-      }
 
       onRegisterSuccess?.(data.customer || data);
 
@@ -349,6 +322,7 @@ export default function LoginModal({
         mobile: "",
         email: "",
         address: "",
+        deliveryArea: "",
         username: "",
         password: "",
         confirmPassword: "",
@@ -602,25 +576,21 @@ export default function LoginModal({
 
               </Form.Group>
 
-              {/* ADDRESS */}
-
-              <Form.Group className="mb-3">
-
-                <Form.Label>
-                  Address
-                </Form.Label>
-
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  name="address"
-                  placeholder="Enter your complete address"
-                  value={registerForm.address}
-                  onChange={handleRegisterChange}
-                  autoComplete="street-address"
-                />
-
-              </Form.Group>
+              <DeliveryDetails
+                areas={deliveryAreas}
+                deliveryArea={registerForm.deliveryArea}
+                onDeliveryAreaChange={handleRegistrationAreaChange}
+                address={registerForm.address}
+                onAddressChange={(address) =>
+                  setRegisterForm((prev) => ({ ...prev, address }))
+                }
+                addressLabel="Address *"
+                addressPlaceholder="Enter your complete address"
+                addressRequired
+                showLocation={false}
+                areaId="register-delivery-area"
+                addressId="register-delivery-address"
+              />
 
               {/* USERNAME */}
 

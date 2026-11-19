@@ -3,24 +3,27 @@ import "./Style.css";
 import Home from "./Home";
 import { ShopProvider } from "./ShopProvider";
 import Dashboard from "./Dashboard";
+import { AuthProvider } from "./AuthProvider";
 
 export default function App() {
   return (
     <ShopProvider>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/Dashboard" element={<Dashboard />} />
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/Dashboard" element={<Dashboard />} />
 
-        <Route
-          path="*"
-          element={
-            <main className="page-content">
-              <h1>404 - Page Not Found</h1>
-              <p>The page you are looking for does not exist.</p>
-            </main>
-          }
-        />
-      </Routes>
+          <Route
+            path="*"
+            element={
+              <main className="page-content">
+                <h1>404 - Page Not Found</h1>
+                <p>The page you are looking for does not exist.</p>
+              </main>
+            }
+          />
+        </Routes>
+      </AuthProvider>
     </ShopProvider>
   );
 }

@@ -1,15 +1,15 @@
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   FiX,
   FiPlus,
   FiMinus,
   FiTrash2,
-  FiMapPin,
-  FiCheckCircle,
 } from "react-icons/fi";
 
 import { useShop } from "./useShop";
+import DeliveryDetails from "./DeliveryDetails";
+import { useAuth } from "./useAuth";
 
 export default function BasketDrawer({
   open,
@@ -30,13 +30,12 @@ export default function BasketDrawer({
     cleaningTotal = 0,
     deliveryCharge = 0,
   } = useShop();
+  const { isAuthenticated, requestLogin, loginOpen } = useAuth();
 
   // Local states
   const [confirmClear, setConfirmClear] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [customerLocation, setCustomerLocation] = useState(null);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [locationError, setLocationError] = useState("");
+  const pendingOrder = useRef(null);
 
   // Safe numeric values
   const safeSubtotal = Number(subtotal) || 0;
@@ -83,22 +82,16 @@ export default function BasketDrawer({
   // Checkout validation
   const isDeliveryDetailsValid =
     isStorePickup ||
-    (
-      deliveryAddress.trim().length > 0 &&
-      customerLocation !== null
-    );
+    deliveryAddress.trim().length > 0;
 
   const canCheckout =
     cart.length > 0 &&
     Boolean(deliveryArea) &&
-    isDeliveryDetailsValid &&
-    !locationLoading;
+    isDeliveryDetailsValid;
 
   // Reset address/location when changing delivery option
   useEffect(() => {
     setDeliveryAddress("");
-    setCustomerLocation(null);
-    setLocationError("");
   }, [deliveryArea]);
 
   // Reset confirmation when drawer closes
@@ -107,6 +100,25 @@ export default function BasketDrawer({
       setConfirmClear(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      pendingOrder.current = null;
+      return;
+    }
+
+    if (isAuthenticated && pendingOrder.current) {
+      const order = pendingOrder.current;
+      pendingOrder.current = null;
+      onPlaceOrder?.(order);
+    }
+  }, [isAuthenticated, onPlaceOrder, open]);
+
+  useEffect(() => {
+    if (!loginOpen && !isAuthenticated) {
+      pendingOrder.current = null;
+    }
+  }, [isAuthenticated, loginOpen]);
 
   // Prevent background scrolling
   useEffect(() => {
@@ -134,56 +146,6 @@ export default function BasketDrawer({
     };
   }, [open]);
 
-  // Share customer GPS location
-  const handleShareLocation = () => {
-    if (!navigator.geolocation) {
-      setLocationError(
-        "Your browser does not support location sharing."
-      );
-      return;
-    }
-
-    setLocationLoading(true);
-    setLocationError("");
-    setCustomerLocation(null);
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setCustomerLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-        });
-
-        setLocationLoading(false);
-        setLocationError("");
-      },
-      (error) => {
-        setLocationLoading(false);
-        setCustomerLocation(null);
-
-        if (error.code === 1) {
-          setLocationError(
-            "Please allow location permission in your browser."
-          );
-        } else if (error.code === 2) {
-          setLocationError(
-            "Your location is unavailable. Please try again."
-          );
-        } else {
-          setLocationError(
-            "Location request timed out. Please try again."
-          );
-        }
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
-      }
-    );
-  };
-
   // Place order
   const handleCheckout = () => {
     if (!canCheckout) return;
@@ -201,13 +163,7 @@ export default function BasketDrawer({
 
       customerLocation: isStorePickup
         ? null
-        : {
-          latitude: customerLocation.latitude,
-          longitude: customerLocation.longitude,
-          accuracy: customerLocation.accuracy,
-          googleMapsUrl:
-            `https://www.google.com/maps?q=${customerLocation.latitude},${customerLocation.longitude}`,
-        },
+        : null,
 
       deliveryCharge: currentDeliveryCharge,
       subtotal: safeSubtotal,
@@ -229,6 +185,12 @@ export default function BasketDrawer({
       alert(
         "Order submission is not connected yet. Please connect onPlaceOrder."
       );
+      return;
+    }
+
+    if (!isAuthenticated) {
+      pendingOrder.current = orderDetails;
+      requestLogin();
       return;
     }
 
@@ -416,103 +378,23 @@ export default function BasketDrawer({
             <div className="basket-footer">
 
               {/* DELIVERY AREA */}
-              <div className="basket-delivery">
+              <DeliveryDetails
+                areas={allDeliveryOptions}
+                deliveryArea={deliveryArea}
+                onDeliveryAreaChange={setDeliveryArea}
+                address={deliveryAddress}
+                onAddressChange={setDeliveryAddress}
+                includePickup
+                showPrices
+                showLocation={false}
+                addressRequired
+              />
 
-                <label htmlFor="delivery-area">
-                  <FiMapPin />
-                  Select Delivery Area
-                </label>
-
-                <div className="basket-delivery-select-wrapper">
-                  <select
-                    id="delivery-area"
-                    value={deliveryArea || ""}
-                    onChange={(event) => setDeliveryArea(event.target.value)}
-                  >
-                    <option value="">Choose your delivery area</option>
-
-                    {allDeliveryOptions.map((area) => (
-                      <option key={area.name} value={area.name}>
-                        {area.name === "Store Pickup"
-                          ? "Store Pickup — FREE"
-                          : `${area.name} — ₹${area.charge} delivery`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* DELIVERY ADDRESS AND LOCATION */}
-                {deliveryArea && !isStorePickup && (
-                  <div className="basket-address-section">
-
-                    <label htmlFor="delivery-address">
-                      Delivery Address *
-                    </label>
-
-                    <textarea
-                      id="delivery-address"
-                      className="basket-address-input"
-                      rows={3}
-                      placeholder="Enter your complete delivery address..."
-                      value={deliveryAddress}
-                      onChange={(event) =>
-                        setDeliveryAddress(event.target.value)
-                      }
-                    />
-
-                    {!deliveryAddress.trim() && (
-                      <small className="basket-validation">
-                        Please enter your delivery address.
-                      </small>
-                    )}
-
-                    <button
-                      type="button"
-                      className="basket-location-btn"
-                      onClick={handleShareLocation}
-                      disabled={locationLoading}
-                    >
-                      <FiMapPin />
-
-                      {locationLoading
-                        ? "Getting Location..."
-                        : customerLocation
-                          ? "Location Shared Successfully"
-                          : "Share My Location"}
-                    </button>
-
-                    {customerLocation && (
-                      <div className="basket-location-success">
-                        <span>
-                          <FiCheckCircle />
-                          Location captured successfully
-                        </span>
-
-                        <a
-                          href={`https://www.google.com/maps?q=${customerLocation.latitude},${customerLocation.longitude}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          View Shared Location
-                        </a>
-                      </div>
-                    )}
-
-                    {locationError && (
-                      <small className="basket-validation">
-                        {locationError}
-                      </small>
-                    )}
-
-                    {!customerLocation &&
-                      !locationError && (
-                        <small className="basket-hint">
-                          Please share your current location
-                          to continue.
-                        </small>
-                      )}
-
-                  </div>
+              {deliveryArea && !isStorePickup &&
+                !deliveryAddress.trim() && (
+                  <small className="basket-validation">
+                    Please enter your delivery address.
+                  </small>
                 )}
 
                 {/* STORE PICKUP MESSAGE */}
@@ -548,8 +430,6 @@ export default function BasketDrawer({
                     </span>
                   </div>
                 )}
-
-              </div>
 
               {/* BILL SUMMARY */}
               <div className="basket-bill-row">
@@ -654,8 +534,7 @@ export default function BasketDrawer({
 
               {!canCheckout && deliveryArea && !isStorePickup && (
                 <p className="basket-hint">
-                  Enter your address and share your location
-                  to continue.
+                  Enter your address to continue.
                 </p>
               )}
 

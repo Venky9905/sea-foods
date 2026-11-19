@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import Banner from "./Banner";
 import CartItem from "./CartItem";
@@ -17,6 +17,14 @@ export default function Home() {
   const handleCloseBasket = () => {
     setBasketOpen(false);
   };
+
+  useEffect(() => {
+    const openBasket = () => setBasketOpen(true);
+    window.addEventListener("open-seafood-basket", openBasket);
+    return () => {
+      window.removeEventListener("open-seafood-basket", openBasket);
+    };
+  }, []);
 
   const handlePlaceOrder = (orderDetails) => {
     try {
